@@ -1,0 +1,47 @@
+html {
+    background: #282c34;
+    color: white;
+}
+
+
+.connect {
+    overflow: hidden;
+    float: right;
+    padding: 10px 20px;
+    cursor: pointer;
+}
+.connect:hover {
+    background-color: #ddd;
+    color: black;
+}
+
+.topnav {
+    overflow: hidden;
+    background-color: #333333;
+    padding: 0 100px;
+}
+.topnav a {
+    float: left;
+    display: block;
+    color: #f2f2f2;
+    text-align: center;
+    padding: 10px 20px;
+    text-decoration: none;
+}
+.topnav a:hover {
+    background-color: #ddd;
+    color: black;
+}
+
+.column {
+    float: left;
+    width: 200px;
+}
+.row {
+    padding: 0 80px;
+}
+.row:after {
+    content: "";
+    display: table;
+    clear: both;
+}
