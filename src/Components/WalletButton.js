@@ -25,7 +25,7 @@ export const WalletButton = (props) => {
                 </div>
                 }
                 <div className="connect">{coinRound(props.chain, balance)} {getChainMainCoin(props.chain)} {shortenWallet(wallet)}</div>
-                <ReactTooltip />
+                <ReactTooltip /> 
             </div>
         )
     } else

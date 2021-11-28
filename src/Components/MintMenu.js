@@ -1,6 +1,6 @@
 
 export const MintMenu = (props) => {
-    const { canMint, notMinted, remainRents } = props;
+    const { canMint, notMinted, remainRents, contractNft } = props;
 
     if (canMint){
         return (<div>mint</div>)
@@ -9,8 +9,10 @@ export const MintMenu = (props) => {
     } else {
         if (remainRents > 0){
             return (<div>remaining rents {remainRents}</div>)
-        } else {
+        } else if (remainRents === 0) {
             return (<div>all rented</div>)
-        }
+        } else if (contractNft){
+            return (<div>gift inside</div>)
+        } else { return (<div>rented</div>) }
     }
 }

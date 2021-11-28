@@ -1,5 +1,5 @@
 import { React } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import { Gallery } from './Gallery'
@@ -8,9 +8,14 @@ import { MyPresents } from './MyPresents'
 import { WalletButton } from './WalletButton'
 import { getChainName, getChainMainCoin } from './Converters'
 import { connect, getWeb3, fixChecksumAddress, getBalance, addChain } from '../Logic/WalletConn'
-import { mint, rent, wrap, setStartTime, setPrice, getTransfers, getTokenUri, getUri, getRentTokenId, ownerOf, getTokensOfOwner } from '../Logic/NftLogic'
-import { insertNft, getNfts } from '../Logic/ServerLogic'
+import { mint, rent, wrap, unwrap, setStartTime, setPrice, getTransfers, getTokenUri, getUri, getRentTokenId, ownerOf, 
+    getRemainRents, getRentPrice, isApprovedForAll, setApprovalForAll, selfRent } from '../Logic/NftLogic'
+import { insertNft, getNfts, getPresents, updateNft } from '../Logic/ServerLogic'
 import { NotificationContainer, NotificationManager } from 'react-notifications'
+import { indexOf } from './Utils'
+import ReactTooltip from 'react-tooltip'
+import discordImg from '../Images/discord.png'
+import twitterImg from '../Images/twitter.png'
 
 import 'react-notifications/lib/notifications.css';
 import '../Css/Main.css';
@@ -19,7 +24,10 @@ import { CHAIN_POLYGON, MAX_SUPPLY } from './Units';
 const axios = require('axios');
 
 export const Main = () => {
+    const rentsCount = 10;
+    const rentBasePrice = 0.01;
     const contractAddress = "0xA532303BFD5A99fAbe65C9405d72e3Ea65f8D4E5";
+    const zeroAddress = "0x0000000000000000000000000000000000000000";
     const [nfts, setNfts] = useState([]);
     const [presents, setPresents] = useState([]);
     const [web3, setWeb3] = useState(null);
@@ -28,8 +36,9 @@ export const Main = () => {
     const [chain, setChain] = useState("");
     const [balance, setBalance] = useState(0);
     const [myPresents, setMyPresents] = useState([]);
-    const [nextId, setNextId] = useState(1000000000);
+    let nextId = useRef(1000000000);
     const [received, setReceived] = useState([]);
+    const [wasUpdated, setWasUpdated] = useState(false);
 
     const isMine = (address) => {
         return true || address === wallet;
@@ -40,37 +49,123 @@ export const Main = () => {
             return; 
         }
         mint(web3, contractAddress, wallet, tokenId, price, () => {
-            // TO-DO
+            // MINTED
             console.log("minted");
+            let present = { id: tokenId, isPresent: true, remainRents: rentsCount, owner: wallet, price: rentBasePrice };
+            insertNft(wallet, contractAddress, tokenId, present);
+
+            updatePresentsStateLocal([present]);
+            updateNfts([present]);
         });
     }
-    const contractRent = (tokenId, price) => {
+    const contractRent = (tokenId, owner) => {
         if (web3 == null || wallet == null || wallet.length === 0){ 
             notConnected();
             return; 
         }
         getRentTokenId(web3, contractAddress, tokenId, (val) => {
             let rentTokenId = val;
+            console.log("rentTokenId: " + rentTokenId);
 
-            rent(web3, contractAddress, wallet, tokenId, rentTokenId, price, () => {
-                // TO-DO
-                console.log("rented");
-            });
+            if (owner === wallet) {
+                selfRent(web3, contractAddress, wallet, tokenId, rentTokenId, () => {
+                    // RENTED
+                    afterRent(tokenId, rentTokenId);
+                });
+            } else {
+                getRentPrice(web3, contractAddress, tokenId, (price) => {
+                    console.log("price: " + price);
+
+                    rent(web3, contractAddress, wallet, tokenId, rentTokenId, price, () => {
+                        // RENTED
+                        afterRent(tokenId, rentTokenId);
+                    });
+                });
+            }
         });
+    }
+    const afterRent = (tokenId, rentTokenId) => {
+        console.log("rented");
+        let newPresent = { id: rentTokenId, isPresent: true, owner: wallet };
+        insertNft(wallet, contractAddress, rentTokenId, newPresent);
+        let gift = myPresents.filter(x => x.id === tokenId)[0];
+        if (gift === undefined || gift == null){ gift = presents.filter(x => x.id === tokenId)[0]; }
+        console.log("gift:");
+        console.log(gift);
+        let originalPresent = { id: tokenId, isPresent: true, remainRents: (gift.remainRents - 1),
+            owner: gift.owner };
+        updateNft(wallet, contractAddress, tokenId, originalPresent);
+
+        updateNfts([newPresent, originalPresent]);
     }
     const contractWrap = (tokenId, contractNft, nftId) => {
         if (web3 == null || wallet == null || wallet.length === 0){ 
             notConnected();
             return; 
         }
-        getRentTokenId(web3, contractAddress, tokenId, val => {
-            let rentTokenId = val;
+        console.log("tokenId: " + tokenId);
+        let rentable = findRentable(tokenId);
+        if (rentable === undefined) {
+            NotificationManager.warning("Rent a present first.", "Present wasn't rented yet", 5000);
+            /*getRentTokenId(web3, contractAddress, tokenId, val => {
+                let rentTokenId = val;
 
+                wrapPrivate(rentTokenId, contractNft, nftId);
+            });*/
+        } else {
+            let rentTokenId = rentable.id;
+            wrapPrivate(rentTokenId, contractNft, nftId);
+        }
+    }
+    const wrapPrivate = (rentTokenId, contractNft, nftId) => {
+        if (contractNft === undefined) {
+            contractNft = contractAddress;
+        }
+        console.log("rentTokenId: " + rentTokenId + " contractNft: " + contractNft + " nftId: " + nftId);
+        approveIfNeeded(contractNft, () => {
             wrap(web3, contractAddress, wallet, rentTokenId, contractNft, nftId, (val) => {
-                // TO-DO
+                // WRAPPED
                 console.log("wrap");
+                let gift = myPresents.filter(x => x.contractNft === contractNft && x.nftId === nftId)[0];
+                if (gift === undefined) { gift = myPresents.filter(x => x.id === nftId)[0]; }
+                gift.owner = contractAddress;
+                updateNft(wallet, contractNft, nftId, gift);
+                let wrapper = myPresents.filter(x => x.id === rentTokenId)[0];
+                wrapper.contractNft = contractNft;
+                wrapper.nftId = nftId;
+                updateNft(wallet, contractAddress, rentTokenId, wrapper);
             });
         });
+    }
+    const findRentable = (tokenId) => {
+        let result = myPresents.filter(x => x.id >= MAX_SUPPLY && (x.id % MAX_SUPPLY) === (tokenId % MAX_SUPPLY));
+        return result !== undefined && result.length > 0 ? result[0] : undefined;
+    }
+    const approveIfNeeded = (contractNft, onFinish) => {
+        isApprovedForAll(web3, contractNft, wallet, (isApproved) => {
+            if (!isApproved) {
+                NotificationManager.info("Approve first, then wrapping will be possible.", "Approval needed", 5000);
+                setApprovalForAll(web3, contractAddress, wallet, () => {
+                    onFinish();
+                });
+            } else {
+                onFinish();
+            }
+        });
+    }
+    const contractUnwrap = (rentTokenId, contractNft, nftId) => {
+        if (Date.now() < 1640354400000) {
+            NotificationManager.warning("You can not open it before Christmas.", "Too soon", 5000);
+        } else {
+            unwrap(web3, contractAddress, rentTokenId, wallet, () => {
+                // UNWRAPPED
+                console.log("unwrap");
+                let wrapper = myPresents.filter(x => x.id === rentTokenId)[0];
+                wrapper.owner = wallet;
+                updateNft(wallet, contractAddress, rentTokenId, wrapper);
+                updateNft(wallet, contractNft, nftId, { contractNft: contractNft, nftId: nftId, owner: wallet } );
+            });
+        }
     }
     const importSingle = (contractId, tokenId) => {
         if (web3 == null || wallet == null || wallet.length === 0){ return; }
@@ -112,7 +207,8 @@ export const Main = () => {
     }
     const importContractPrivate = (transfers, tokenUri) => {
         let arr = nfts;
-        let localNextId = nextId;
+        let localNextId = nextId.current;
+        nextId.current += transfers.length;
 
         console.log(tokenUri);
         let newTokenUri = transformUri(tokenUri);
@@ -133,7 +229,6 @@ export const Main = () => {
                 checkFinish();
             });
         }
-        setNextId(x => x + transfers.length);
     }
     const transformUri = (tokenUri) => {
         if (tokenUri.substring(0, 7) === "ipfs://") {
@@ -144,18 +239,19 @@ export const Main = () => {
 
     const createPresent = (order, id, canMint = true, notMinted = false, remainRents = 0) => {
         let price = canMint ? 0.001 : 0.1; //100 : 10;
-        return { order: order, id: id, canMint: canMint, notMinted: notMinted, remainRents: remainRents, price: price };
+        return { order: order, id: id, key: id, canMint: canMint, notMinted: notMinted, remainRents: remainRents, price: price,
+            owner: null };
     }
     const createPresents = () => {
         const arr = [];
         const ids = [];
         
         let id = 52; 
-        ids.push(id);
-        arr.push(createPresent(0, id.toString(), false, false, 10));
+        //ids.push(id);
+        //arr.push(createPresent(0, id.toString(), false, false, 10));
 
-        for (let i = 1; i < 20; ++i) {
-            id = Math.floor(Math.random() * 100);
+        for (let i = 0; i < 20; ++i) {
+            id = Math.floor(Math.random() * 30);
             if (id >= MAX_SUPPLY) { continue; } // Id is out of bound
             if (ids.includes(id)) { --i; continue; }
             ids.push(id);
@@ -164,8 +260,8 @@ export const Main = () => {
         return arr;
     }
     const createNft = (contractNft, nftId, onCreated) => {
-        let id = nextId;
-        setNextId(x => x += 1);
+        let id = nextId.current;
+        nextId.current += 1;
         getTokenUri(web3, contractNft, nftId, (tokenUri) => {
             if (tokenUri === undefined) { return; }
             let newTokenUri = transformUri(tokenUri);
@@ -215,20 +311,23 @@ export const Main = () => {
         //setPrice(web3, contractAddress, wallet, 0.0001);
 
         getTransfers(web3, contractAddress, wallet, (res) => {
-            let arr = [];
-            let arr2 = [];
             console.log("transfers:");
             console.log(res);
+            let arr = [];
             for (let i = 0; i < res.length; ++i){
                 let tokenId = res[i].returnValues.tokenId;
-                if (tokenId < MAX_SUPPLY) {
-                    arr.push(createPresent(i, tokenId, false, false, 10));
-                } else {
-                    arr2.push(createPresent(i, tokenId, false, false, 0));
+                let owner = res[i].returnValues.to;
+                let item = createPresent(i, tokenId, false, false, 0);
+                item.remainRents = undefined;
+                item.owner = owner;
+                item.contractAddress = contractAddress;
+                item.haveReceived = res[i].returnValues.from !== zeroAddress;
+                if (item.haveReceived) {
+                    arr.push(item);
                 }
             }
-            setMyPresents(x => x = arr);
-            setReceived(x => x = arr2);
+            if (arr.length === 0) { return; }
+            updateNfts(arr);
         });
 
         console.log("wallet changed: " + wallet);
@@ -239,28 +338,115 @@ export const Main = () => {
         }
 
         getNfts(wallet, (val) => {
-            console.log("getNfts:");
+            updateNfts(val.data);
+            /*console.log("getNfts:");
             console.log(val);
-            setNfts(x => x = val.data);
-        });
-
-        getTokensOfOwner(web3, contractAddress, wallet, (val) => {
-            console.log("getTokensOfOwner:");
-            console.log(val);
+            let arrNfts = nfts;
+            let arrGifts = myPresents;
+            let localNextId = 0;
+            for (let i = 0; i < val.data.length; ++i) {
+                if (val.data[i].isPresent) {
+                    let gift = val.data[i];
+                    gift.canMint = false;
+                    gift.notMinted = false;
+                    gift.key = nextId.current + localNextId;
+                    ++localNextId;
+                    if (!arrGifts.some(x => x.id === gift.id)) {
+                        arrGifts.push(gift);
+                    }
+                } else {
+                    arrNfts.push(val.data[i]);
+                }
+            }
+            nextId.current += localNextId;
+            setNfts(x => x = arrNfts);
+            setMyPresents(x => x = arrGifts);*/
         });
     }, [wallet, web3]);
     useEffect(() => {
         document.title = "lucky-presents";
         setPresents(x => x = createPresents());
     }, []);
+    useEffect(() => {
+        updatePresentsState();
+    }, [presents]);
+
+    const updateNfts = (newNfts) => {
+        console.log("getNfts:");
+        console.log(newNfts);
+        let arrNfts = [];
+        let arrGifts = [];
+        for (let i = 0; i < newNfts.length; ++i) {
+            let item = newNfts[i];
+            if (item.haveReceived) {
+                setReceived(x => x = [...received, item]);
+            } else if (item.isPresent || item.contractAddress === contractAddress) {
+                console.log(item);
+                if (item.owner === contractAddress) { // Present is inside other contract
+                    continue;
+                }
+                if (item.tokenId){ item.id = item.tokenId; }
+                item.canMint = false;
+                item.notMinted = false;
+                item.order = 0;
+                item.key = nextId.current;
+                ++nextId.current;
+                if (true || !myPresents.some(x => x.id === item.id)) {
+                    arrGifts.push(item);
+                }
+            } else if (!nfts.some(x => x.id === item.id && x.contractAddress === item.contractAddress)) {
+                item.key = item.nftId + ';' + item.contractNft;
+                arrNfts.push(item);
+            }
+        }
+        if (arrGifts.length > 0){ 
+            setMyPresents(x => x = [...myPresents.filter(x => !arrGifts.some(y => x.id === y.id)), ...arrGifts]); 
+        }
+        if (arrNfts.length > 0){ setNfts(x => x = [...nfts, ...arrNfts]); }
+    }
+    const updatePresentsState = () => {
+        if (presents == null || presents.length === 0 || wasUpdated){ return; }
+        setWasUpdated(x => x = true);
+        //console.log(presents);
+        getPresents(contractAddress, (gifts) => {
+            updatePresentsStateLocal(gifts.data);
+        });
+    }
+    const updatePresentsStateLocal = (gifts) => {
+        const arr = [];
+        //console.log("getPresents:");
+        //console.log(gifts);
+        let localNextId = 0;
+        for (let i = 0; i < gifts.length; ++i) {
+            const present = gifts[i];
+            const filteredIndex = indexOf(presents, x => x.id === presents.id || x.id?.toString() === present.id?.toString());
+            if (filteredIndex > -1) {
+                if (present.owner) {
+                    //console.log("present: " + present.id + " count: " + presents.length);
+                    const item = { ...present, canMint: false, notMinted: false, key: nextId.current + localNextId, order: presents[filteredIndex].order };
+                    //presents.splice(filteredIndex, 1);
+                    //arr.concat([item]);
+                    arr.push(item);
+                    //console.log(item);
+                    localNextId += 1;
+                    //setPresents(x => x = arr);//.sort(x => x.order));
+                }
+            }
+        }
+        setPresents(x => x = [...presents.filter(x => !arr.some(y => x.id === y.id)), ...arr]);
+        if (localNextId > 0){ nextId.current += localNextId; }
+    }
 
     return (
         <Router>
+            <ReactTooltip />
             <div className="header">
                 <a href="http://www.lucky-presents.com">
                     <img src="https://gateway.pinata.cloud/ipfs/QmT18BUESpx7iupthA5ZyMN9YXPTd8ypUUi6V3PUGhvSVW/1.png" alt="" />
                     <div>lucky-presents.com</div>
                 </a>
+                <div className="externalLink"><a href="https://discord.gg/RM8hDC5t" target="new"><img src={discordImg} alt="Discord" /></a></div>
+                <div className="externalLink"><a href="https://twitter.com" target="new"><img src={twitterImg} alt="Twitter" /></a></div>
             </div>
             <div className="topnav">
                 <Link to="/">Gallery</Link>
@@ -271,8 +457,8 @@ export const Main = () => {
             </div>
             
             <Routes>
-                <Route path="/" element={<Gallery presents={presents} mint={contractMint} rent={contractRent} />} />
-                <Route path="/my" element={<Gallery presents={myPresents} nfts={nfts} importContract={importContract} rent={contractRent} wrap={contractWrap} />} />
+                <Route path="/" element={<Gallery presents={presents} myPresents={myPresents} mint={contractMint} rent={contractRent} wrap={contractWrap} wallet={wallet} />} />
+                <Route path="/my" element={<Gallery presents={myPresents} myPresents={myPresents} nfts={nfts} importContract={importContract} rent={contractRent} wrap={contractWrap} unwrap={contractUnwrap} wallet={wallet} />} />
                 <Route path="/howItWorks" element={<HowItWorks />} />
                 <Route path="/received" element={<MyPresents received={received} />} />
             </Routes>

@@ -36,6 +36,18 @@ html {
     100% { transform: translate(2px, -2px) rotate(-1deg); }
   }
 
+.externalLink {
+    float: right;
+}
+.externalLink img {
+    width: 30px;
+    margin-top: -30px;
+}
+.externalLink a:hover img {
+    animation: shake 0.5s;
+    animation-iteration-count: 3; 
+}
+
 .connect {
     overflow: hidden;
     float: right;
@@ -106,7 +118,7 @@ html {
 .presentImageIn {
     display: flex;
 }
-.presentImage:hover img {
+.presentImage:hover .mainImage {
     width: 146px;
     margin: 2px;
 }
@@ -156,7 +168,7 @@ html {
     //width: 150px;
     //background-color: #43464b;
 }*/
-.mintSubmenu div {
+.mintSubmenu button {
     margin: 5px;
 }
 
@@ -204,6 +216,16 @@ html {
     width: 100%;
     height: 40px;
     max-width: 40px;
+}
+.supersmall img {
+    width: 100%;
+    height: 28px;
+}
+#giftSelector {
+    padding: 0px;
+}
+#giftSelector .small {
+    padding: 0px 4px;
 }
 .vMiddle {
     height: 24px;

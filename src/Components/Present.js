@@ -6,8 +6,8 @@ import { getUrl } from './Units'
 
 
 export const Present = (props) => {
-    //const baseUrl = "https://gateway.pinata.cloud/ipfs/QmT18BUESpx7iupthA5ZyMN9YXPTd8ypUUi6V3PUGhvSVW/";
-    const { order, id, canMint, notMinted, remainRents, price, mint, rent } = props;
+    const { order, id, canMint, notMinted, remainRents, price, mint, rent, wrap, unwrap, owner, wallet, myPresents, isPresent,
+        contractNft, nftId } = props;
     const [isActiveSubmenu, setIsActiveSubmenu] = useState(false);
 
     const rndBackground = (id) => {
@@ -22,13 +22,14 @@ export const Present = (props) => {
             <div className={rndBackground(order)}>
                 <div className="presentImageIn">
                     <div>
-                        <img src={getUrl(id)} alt='present' />
+                        <img className="mainImage" src={getUrl(id)} alt='present' />
                         <div className="mintMenu">
-                            <MintMenu canMint={canMint} notMinted={notMinted} remainRents={remainRents} />
+                            <MintMenu canMint={canMint} notMinted={notMinted} remainRents={remainRents} contractNft={contractNft} />
                         </div>
                     </div>
                     <MintSubmenu id={id} isVisible={isActiveSubmenu} canMint={canMint} notMinted={notMinted} remainRents={remainRents} price={price}
-                        mint={mint} rent={rent} />
+                        mint={mint} rent={rent} wrap={wrap} unwrap={unwrap} owner={owner} wallet={wallet} myPresents={myPresents} isPresent={isPresent} 
+                        contractNft={contractNft} nftId={nftId} />
                 </div>
             </div>
         </div>

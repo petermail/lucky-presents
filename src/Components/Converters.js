@@ -23,6 +23,6 @@ export const getChainMainCoin = (x) => {
       case "56": return "BNB";
       case "137": return "MATIC";
       case "1": return "ETH";
-      default: return x;
+      default: return "coins";
     }
   }
