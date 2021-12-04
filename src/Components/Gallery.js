@@ -30,7 +30,7 @@ export const Gallery = (props) => {
                     contractNft={x.contractNft} nftId={x.nftId} />
             )) }
             { nfts?.map(x => (
-                <Nft key={x.id} id={x.id} img={x.img} title={x.title} myPresents={presents} wrap={wrap} contractNft={contractNft} nftId={nftId} />
+                <Nft key={x.id} id={x.id} img={x.img} title={x.title} myPresents={presents} wrap={wrap} contractNft={contractNft} nftId={nftId} wallet={wallet} />
             )) }
         </div>
     )

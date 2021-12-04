@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PRICE_UNIT } from './Units'
+import { PRICE_UNIT, contractAddress } from './Units'
 import { PresentSelector } from './PresentSelector'
 
 export const MintSubmenu = (props) => {
@@ -61,8 +61,14 @@ export const MintSubmenu = (props) => {
                         }
                     </div>
                     Id: {id}<br />
-                    <PresentSelector myPresents={myPresents} updateTokenIdHandler={updateTokenIdHandler} />
-                    <div className="button" onClick={wrapHandler}>wrap</div>
+                    { owner === wallet &&
+                    <>
+                        <PresentSelector myPresents={myPresents} updateTokenIdHandler={updateTokenIdHandler} />
+                        { myPresents !== undefined && myPresents.length > 0 &&
+                            <div className="button" onClick={wrapHandler}>wrap</div>
+                        }
+                    </>
+                    }
                 </div>
             )
         else if (allowWrap) {

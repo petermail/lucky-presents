@@ -1,10 +1,18 @@
 
 import Erc721Abi from '../Json/ERC721Abi.json'
+import Erc1155Abi from '../Json/ERC1155Abi.json'
 import LuckyPresents from '../Json/LuckyPresentsNFT.json'
 import MetadataAbi from '../Json/MetadataAbi.json'
 import { MAX_RENTS } from '../Components/Units'
 
 const blocksInPast = 100;
+
+export const balanceOf = (web3, contractAddress, address, tokenId, onFinish) => {
+    const contract = new web3.eth.Contract(Erc1155Abi, contractAddress);
+    contract.methods.balanceOf(address, tokenId).call((err, val) => {
+        onFinish(val);
+    });
+}
 
 export const isApprovedForAll = (web3, contractAddress, address, onFinish) => {
     const contract = new web3.eth.Contract(Erc721Abi, contractAddress);
@@ -87,12 +95,12 @@ export const getRentPrice = (web3, contractAddress, rentTokenId, onFinish) => {
     });
 }
 
-export const wrap = (web3, contractAddress, address, rentTokenId, contractNft, nftId, onUpdate) => {
+export const wrap = (web3, contractAddress, address, rentTokenId, contractNft, nftId, onUpdate, onError) => {
     const contract = new web3.eth.Contract(LuckyPresents.abi, contractAddress);
     // Sending to address is avoiding sending
     contract.methods.wrapAndSendPresentNFT(address, rentTokenId, contractNft, nftId).send({ from: address }).then(() => {
         onUpdate();
-    }, (err) => { console.log("Error when wrapping."); });
+    }, (err) => { console.log("Error when wrapping."); onError(err); });
 }
 
 export const unwrap = (web3, contractAddress, rentTokenId, address, onFinish) => {
@@ -116,12 +124,12 @@ export const selfRent = (web3, contractAddress, address, tokenId, rentTokenId, o
     }, (err) => { console.log("Error when renting."); });
 }
 
-export const mint = (web3, contractAddress, address, tokenId, price, onUpdate) => {
+export const mint = (web3, contractAddress, address, tokenId, price, onUpdate, onError) => {
     const contract = new web3.eth.Contract(LuckyPresents.abi, contractAddress);
     const weiAmount = web3.utils.toWei(String(price.toFixed(18)), "ether");
     contract.methods.mintNFT(tokenId).send({ from: address, value: weiAmount }).then(() => {
         onUpdate();
-    }, (err) => { console.log("Error when minting."); });
+    }, (err) => { console.log("Error when minting."); onError(err); });
 }
 
 export const setStartTime = (web3, contractAddress, address, startTime) => {

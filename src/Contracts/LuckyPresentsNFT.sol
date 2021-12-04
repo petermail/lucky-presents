@@ -2,9 +2,9 @@
 pragma solidity ^0.8.0;
 // Version 1.0.0
 
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
+import "../../node_modules/@openzeppelin/contracts/access/Ownable.sol";
+import "../../node_modules/@openzeppelin/contracts/utils/math/SafeMath.sol";
+import "../../node_modules/@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "./RentableNFT.sol";
 
 contract LuckyPresentsNFT is RentableNFT, ERC721Holder {

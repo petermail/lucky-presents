@@ -117,6 +117,7 @@ html {
 }
 .presentImageIn {
     display: flex;
+    overflow: hidden;
 }
 .presentImage:hover .mainImage {
     width: 146px;

@@ -21,6 +21,10 @@ export const HowItWorks = () => {
             <p>
                 <img src={wrapExample} alt="wrap example" />
             </p>
+            <p><b>Why Polygon</b></p>
+            <p>
+                Polygon is fast and cheap L2 blockchain that allows great user experience when sending and receiving presents. This way users will avoid high fees of Ethereum blockchain.
+            </p>
             <p><b>More detailed information</b></p>
             <p>
                 There are 2 kinds of presents - original and rented. Original presents work like regular NFTs but they can create a certian number of copies - <i>rents</i>. Rented presents are cheaper but they can not create new rented presents and once they are unwrapped, they are burned.<br />

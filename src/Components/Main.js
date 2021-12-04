@@ -9,7 +9,7 @@ import { WalletButton } from './WalletButton'
 import { getChainName, getChainMainCoin } from './Converters'
 import { connect, getWeb3, fixChecksumAddress, getBalance, addChain } from '../Logic/WalletConn'
 import { mint, rent, wrap, unwrap, setStartTime, setPrice, getTransfers, getTokenUri, getUri, getRentTokenId, ownerOf, 
-    getRemainRents, getRentPrice, isApprovedForAll, setApprovalForAll, selfRent } from '../Logic/NftLogic'
+    getRemainRents, getRentPrice, isApprovedForAll, setApprovalForAll, selfRent, balanceOf } from '../Logic/NftLogic'
 import { insertNft, getNfts, getPresents, updateNft } from '../Logic/ServerLogic'
 import { NotificationContainer, NotificationManager } from 'react-notifications'
 import { indexOf } from './Utils'
@@ -19,15 +19,14 @@ import twitterImg from '../Images/twitter.png'
 
 import 'react-notifications/lib/notifications.css';
 import '../Css/Main.css';
-import { CHAIN_POLYGON, MAX_SUPPLY } from './Units';
+import { CHAIN_POLYGON, MAX_SUPPLY, contractAddress, zeroAddress } from './Units';
 
 const axios = require('axios');
 
 export const Main = () => {
     const rentsCount = 10;
-    const rentBasePrice = 0.01;
-    const contractAddress = "0xA532303BFD5A99fAbe65C9405d72e3Ea65f8D4E5";
-    const zeroAddress = "0x0000000000000000000000000000000000000000";
+    const rentBasePrice = 1;
+    const polygonChain = "137";
     const [nfts, setNfts] = useState([]);
     const [presents, setPresents] = useState([]);
     const [web3, setWeb3] = useState(null);
@@ -56,6 +55,9 @@ export const Main = () => {
 
             updatePresentsStateLocal([present]);
             updateNfts([present]);
+            NotificationManager.success("Present was successfully minted.", "Minted", 5000);
+        }, (err) => {
+            NotificationManager.error("Present was already minted, try reload page.", "Mint wasn't successful", 5000);
         });
     }
     const contractRent = (tokenId, owner) => {
@@ -97,6 +99,7 @@ export const Main = () => {
         updateNft(wallet, contractAddress, tokenId, originalPresent);
 
         updateNfts([newPresent, originalPresent]);
+        NotificationManager.success("Present was successfully rented.", "Rented", 5000);
     }
     const contractWrap = (tokenId, contractNft, nftId) => {
         if (web3 == null || wallet == null || wallet.length === 0){ 
@@ -134,11 +137,16 @@ export const Main = () => {
                 wrapper.contractNft = contractNft;
                 wrapper.nftId = nftId;
                 updateNft(wallet, contractAddress, rentTokenId, wrapper);
+
+                removeLocalNft(contractNft, nftId);
+                NotificationManager.success("NFT was wrapped successfully.", "Wrapped", 5000);
+            }, (err) => {
+                NotificationManager.error("Verify that you own the NFT to wrap it and that it is on correct network.", "Wrapping not successful", 8000);
             });
         });
     }
     const findRentable = (tokenId) => {
-        let result = myPresents.filter(x => x.id >= MAX_SUPPLY && (x.id % MAX_SUPPLY) === (tokenId % MAX_SUPPLY));
+        let result = myPresents.filter(x => x.id >= MAX_SUPPLY && (x.id % MAX_SUPPLY) === (tokenId % MAX_SUPPLY) && x.contractNft === undefined);
         return result !== undefined && result.length > 0 ? result[0] : undefined;
     }
     const approveIfNeeded = (contractNft, onFinish) => {
@@ -164,18 +172,32 @@ export const Main = () => {
                 wrapper.owner = wallet;
                 updateNft(wallet, contractAddress, rentTokenId, wrapper);
                 updateNft(wallet, contractNft, nftId, { contractNft: contractNft, nftId: nftId, owner: wallet } );
+                NotificationManager.success("Present was successfully unwrapped.", "Unwrapped", 5000);
             });
         }
     }
     const importSingle = (contractId, tokenId) => {
         if (web3 == null || wallet == null || wallet.length === 0){ return; }
         tokenId = parseInt(tokenId);
-        if (isNaN(tokenId) || tokenId < 0){ return; }
+        if (isNaN(tokenId) || tokenId < 0){ 
+            NotificationManager.info("Please fill token id first.", "Wrong token id", 5000);
+            return; 
+        }
         ownerOf(web3, contractId, tokenId, (owner) => {
-            if (isMine(owner)) {
-                createNft(contractId, tokenId, (newNft) => {
+            if (owner !== undefined) {
+                if (isMine(owner)) {
+                    createNft(contractId, tokenId, true, (newNft) => {
+                        setNfts(x => [...x, newNft]);
+                        insertNft(wallet, contractId, tokenId, newNft);
+                        NotificationManager.success("NFT loaded.", "NFT found", 5000);
+                    });
+                }
+            } else {
+                //console.log("ERC1155");
+                createNft(contractId, tokenId, false, (newNft) => {
                     setNfts(x => [...x, newNft]);
                     insertNft(wallet, contractId, tokenId, newNft);
+                    NotificationManager.success("NFT loaded.", "NFT found", 5000);
                 });
             }
         });
@@ -183,10 +205,23 @@ export const Main = () => {
     const notConnected = () => {
         NotificationManager.error("Connect wallet first.", "Wallet not connected", 5000);
     }
+    const checkChain = () => {
+        if (chain !== polygonChain && chain.length > 0) {
+            NotificationManager.warning("Use Polygon blockchain to interact with presents - mint, rent, wrap, unwrap.", "Wrong blockchain", 5000);
+        }
+    }
     const importContract = (contractId, tokenId) => {
         if (web3 == null || wallet == null || wallet.length === 0){ 
             notConnected();
             return; 
+        }
+        if (contractId.length === 0) {
+            NotificationManager.info("Please fill in smart contract address first.", "No NFT contract", 5000);
+            return;
+        }
+        if (!web3.utils.isAddress(contractId)) {
+            NotificationManager.error("Smart contract address has wrong format.", "Wrong NFT contract", 5000);
+            return;
         }
         if (tokenId.length > 0){
             importSingle(contractId, tokenId);
@@ -238,7 +273,7 @@ export const Main = () => {
     }
 
     const createPresent = (order, id, canMint = true, notMinted = false, remainRents = 0) => {
-        let price = canMint ? 0.001 : 0.1; //100 : 10;
+        let price = canMint ? 10 : rentBasePrice;
         return { order: order, id: id, key: id, canMint: canMint, notMinted: notMinted, remainRents: remainRents, price: price,
             owner: null };
     }
@@ -259,11 +294,15 @@ export const Main = () => {
         }
         return arr;
     }
-    const createNft = (contractNft, nftId, onCreated) => {
+    const createNft = (contractNft, nftId, isErc721, onCreated) => {
         let id = nextId.current;
         nextId.current += 1;
-        getTokenUri(web3, contractNft, nftId, (tokenUri) => {
-            if (tokenUri === undefined) { return; }
+        const funcGetUri = isErc721 ? getTokenUri : getUri;
+        funcGetUri(web3, contractNft, nftId, (tokenUri) => {
+            if (tokenUri === undefined) { 
+                NotificationManager.error("Token URL wasn't found.", "Token URL not found", 5000);
+                return; 
+            }
             let newTokenUri = transformUri(tokenUri);
 
             axios.get(newTokenUri).then((val2) => {
@@ -271,6 +310,8 @@ export const Main = () => {
                 let imgSrc = transformUri(val2.data.image);
                 let title = val2.data.name;
                 onCreated({ id: id, title: title, img: imgSrc, contractNft: contractNft, nftId: nftId });
+            }).catch((err) => {
+                NotificationManager.error("NFT can not be loaded.", "NFT not found", 5000);
             });
         });
     }
@@ -299,6 +340,9 @@ export const Main = () => {
             setWallet(x => x = acc);
         });
     }, [web3]);
+    useEffect(() => {
+        checkChain();
+    }, [chain])
     
     const addChainPolygon = () => {
         addChain(eth, CHAIN_POLYGON, getChainName(CHAIN_POLYGON), 
@@ -404,6 +448,13 @@ export const Main = () => {
         }
         if (arrNfts.length > 0){ setNfts(x => x = [...nfts, ...arrNfts]); }
     }
+    const removeLocalNft = (contractNft, nftId) => {
+        if (contractNft === contractAddress) {
+            setMyPresents(x => x = [...myPresents.filter(x => x.id !== nftId)]); 
+        } else {
+            setNfts(x => x = [...nfts.filter(x => x.contractNft !== contractNft || x.nftId !== nftId)]);
+        }
+    }
     const updatePresentsState = () => {
         if (presents == null || presents.length === 0 || wasUpdated){ return; }
         setWasUpdated(x => x = true);
@@ -446,7 +497,7 @@ export const Main = () => {
                     <div>lucky-presents.com</div>
                 </a>
                 <div className="externalLink"><a href="https://discord.gg/RM8hDC5t" target="new"><img src={discordImg} alt="Discord" /></a></div>
-                <div className="externalLink"><a href="https://twitter.com" target="new"><img src={twitterImg} alt="Twitter" /></a></div>
+                <div className="externalLink"><a href="https://twitter.com/lucky_presents2" target="new"><img src={twitterImg} alt="Twitter" /></a></div>
             </div>
             <div className="topnav">
                 <Link to="/">Gallery</Link>
