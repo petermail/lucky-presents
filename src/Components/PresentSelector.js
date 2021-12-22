@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { getUrl } from './Units'
+import ReactTooltip from 'react-tooltip'
 
 import treeImg from '../Images/tree.png'
 
@@ -24,9 +25,14 @@ export const PresentSelector = (props) => {
     if (myPresents !== undefined && myPresents.length > 0) {
         return (
             <div id="giftSelector" className="flex">
-                <div className="button vMiddle" onClick={(e) => changeSelected(e, -1)}>&lt;</div>
-                <div className="small"><img src={getImage()} alt="present" /></div>
-                <div className="button vMiddle" onClick={(e) => changeSelected(e, 1)}>&gt;</div>
+                <ReactTooltip />
+                { myPresents.length > 1 &&
+                    <div className="button vMiddle" onClick={(e) => changeSelected(e, -1)}>&lt;</div>
+                }
+                <div className="small" data-tip="present for wrapping"><img src={getImage()} alt="present" /></div>
+                { myPresents.length > 1 && 
+                    <div className="button vMiddle" onClick={(e) => changeSelected(e, 1)}>&gt;</div>
+                }
                 <div className="supersmall" data-tip="unwrap on Christmas"><img src={treeImg} alt="tree" /></div>
             </div>
         )

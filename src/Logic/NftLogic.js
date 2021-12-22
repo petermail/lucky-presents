@@ -27,7 +27,15 @@ export const setApprovalForAll = (web3, contractAddress, address, onFinish) => {
     }, (err) => console.log("Error when approving."));
 }
 
+export const safeTransferFrom = (web3, contractAddress, address, toAddress, tokenId, onUpdate) => {
+    const contract = new web3.eth.Contract(Erc721Abi, contractAddress);
+    contract.methods.safeTransferFrom(address, toAddress, tokenId).send({ from: address }).then(() => {
+        onUpdate();
+    }, (err) => console.log("Error when sending."));
+}
+
 export const getTokenUri = (web3, contractAddress, tokenId, onFinish) => {
+    console.log("getTokenUri");
     const contract = new web3.eth.Contract(MetadataAbi, contractAddress);
     contract.methods.tokenURI(tokenId).call((err, val) => {
         onFinish(val);
@@ -50,6 +58,20 @@ export const ownerOf = (web3, contractAddress, tokenId, onFinish) => {
 export const hasPresentInside = (web3, contractAddress, rentTokenId, onFinish) => {
     const contract = new web3.eth.Contract(Erc721Abi, contractAddress);
     contract.methods.hasPresentInside(rentTokenId).call((err, val) => {
+        onFinish(val);
+    });
+}
+
+export const setBaseURI = (web3, contractAddress, address, baseUri, onUpdate) => {
+    const contract = new web3.eth.Contract(LuckyPresents.abi, contractAddress);
+    contract.methods.setBaseURI(baseUri).send({ from: address }).then((val) => {
+        if (onUpdate) { onUpdate(val); }
+    }, (err) => { console.log("Error setting baseUri"); });
+}
+
+export const getOwners = (web3, contractAddress, startId, count, onFinish) => {
+    const contract = new web3.eth.Contract(LuckyPresents.abi, contractAddress);
+    contract.methods.getOwners(startId, count).call((err, val) => {
         onFinish(val);
     });
 }

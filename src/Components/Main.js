@@ -9,10 +9,12 @@ import { WalletButton } from './WalletButton'
 import { getChainName, getChainMainCoin } from './Converters'
 import { connect, getWeb3, fixChecksumAddress, getBalance, addChain } from '../Logic/WalletConn'
 import { mint, rent, wrap, unwrap, setStartTime, setPrice, getTransfers, getTokenUri, getUri, getRentTokenId, ownerOf, 
-    getRemainRents, getRentPrice, isApprovedForAll, setApprovalForAll, selfRent, balanceOf } from '../Logic/NftLogic'
-import { insertNft, getNfts, getPresents, updateNft } from '../Logic/ServerLogic'
+    getRemainRents, getRentPrice, isApprovedForAll, setApprovalForAll, selfRent, getOwners, setBaseURI } from '../Logic/NftLogic'
+import { insertNft, getNfts, getPresents, updateNft, getPrices } from '../Logic/ServerLogic'
 import { NotificationContainer, NotificationManager } from 'react-notifications'
 import { indexOf } from './Utils'
+import { createNft, transformUri } from '../Logic/MetadataLogic'
+
 import ReactTooltip from 'react-tooltip'
 import discordImg from '../Images/discord.png'
 import twitterImg from '../Images/twitter.png'
@@ -27,6 +29,7 @@ export const Main = () => {
     const rentsCount = 10;
     const rentBasePrice = 1;
     const polygonChain = "137";
+    const isTestEnv = false;
     const [nfts, setNfts] = useState([]);
     const [presents, setPresents] = useState([]);
     const [web3, setWeb3] = useState(null);
@@ -36,6 +39,7 @@ export const Main = () => {
     const [balance, setBalance] = useState(0);
     const [myPresents, setMyPresents] = useState([]);
     let nextId = useRef(1000000000);
+    let prices = useRef([]);
     const [received, setReceived] = useState([]);
     const [wasUpdated, setWasUpdated] = useState(false);
 
@@ -68,6 +72,7 @@ export const Main = () => {
         getRentTokenId(web3, contractAddress, tokenId, (val) => {
             let rentTokenId = val;
             console.log("rentTokenId: " + rentTokenId);
+            if (!rentTokenId) { return; }
 
             if (owner === wallet) {
                 selfRent(web3, contractAddress, wallet, tokenId, rentTokenId, () => {
@@ -95,7 +100,7 @@ export const Main = () => {
         console.log("gift:");
         console.log(gift);
         let originalPresent = { id: tokenId, isPresent: true, remainRents: (gift.remainRents - 1),
-            owner: gift.owner };
+            owner: gift.owner, price: rentBasePrice };
         updateNft(wallet, contractAddress, tokenId, originalPresent);
 
         updateNfts([newPresent, originalPresent]);
@@ -183,7 +188,13 @@ export const Main = () => {
             NotificationManager.info("Please fill token id first.", "Wrong token id", 5000);
             return; 
         }
-        ownerOf(web3, contractId, tokenId, (owner) => {
+        ++nextId.current;
+        createNft(web3, contractId, tokenId, nextId.current, (newNft) => {
+            setNfts(x => [...x, newNft]);
+            insertNft(wallet, contractId, tokenId, newNft);
+            NotificationManager.success("NFT loaded.", "NFT found", 5000);
+        });
+        /*ownerOf(web3, contractId, tokenId, (owner) => {
             if (owner !== undefined) {
                 if (isMine(owner)) {
                     createNft(contractId, tokenId, true, (newNft) => {
@@ -200,7 +211,7 @@ export const Main = () => {
                     NotificationManager.success("NFT loaded.", "NFT found", 5000);
                 });
             }
-        });
+        });*/
     }
     const notConnected = () => {
         NotificationManager.error("Connect wallet first.", "Wallet not connected", 5000);
@@ -265,15 +276,15 @@ export const Main = () => {
             });
         }
     }
-    const transformUri = (tokenUri) => {
+    /*const transformUri = (tokenUri) => {
         if (tokenUri.substring(0, 7) === "ipfs://") {
             return "https://cloudflare-ipfs.com/ipfs/" + tokenUri.substring(7);
         }
         return tokenUri;
-    }
+    }*/
 
     const createPresent = (order, id, canMint = true, notMinted = false, remainRents = 0) => {
-        let price = canMint ? 10 : rentBasePrice;
+        let price = isTestEnv ? (canMint ? 0.01 : 0.001) : (canMint ? 10 : rentBasePrice);
         return { order: order, id: id, key: id, canMint: canMint, notMinted: notMinted, remainRents: remainRents, price: price,
             owner: null };
     }
@@ -286,7 +297,11 @@ export const Main = () => {
         //arr.push(createPresent(0, id.toString(), false, false, 10));
 
         for (let i = 0; i < 20; ++i) {
-            id = Math.floor(Math.random() * 30);
+            if (isTestEnv) {
+                id = 200 + Math.floor(Math.random() * 30);
+            } else {
+                id = Math.floor(Math.random() * 30);
+            }
             if (id >= MAX_SUPPLY) { continue; } // Id is out of bound
             if (ids.includes(id)) { --i; continue; }
             ids.push(id);
@@ -294,7 +309,7 @@ export const Main = () => {
         }
         return arr;
     }
-    const createNft = (contractNft, nftId, isErc721, onCreated) => {
+    /*const createNft = (contractNft, nftId, isErc721, onCreated) => {
         let id = nextId.current;
         nextId.current += 1;
         const funcGetUri = isErc721 ? getTokenUri : getUri;
@@ -314,7 +329,7 @@ export const Main = () => {
                 NotificationManager.error("NFT can not be loaded.", "NFT not found", 5000);
             });
         });
-    }
+    }*/
 
     const connectHandler = () => {
         setWeb3(x => x = getWeb3());
@@ -353,11 +368,13 @@ export const Main = () => {
         if (web3 == null || wallet == null || wallet.length === 0){ return; }
         //setStartTime(web3, contractAddress, wallet, 1637405401);
         //setPrice(web3, contractAddress, wallet, 0.0001);
+        //setBaseURI(web3, contractAddress, wallet, "ipfs://QmVzbVKyP3ZAdBtW12Nqf11WPUK6sSQFRtYnnofTtSHdPx/", null);
 
         getTransfers(web3, contractAddress, wallet, (res) => {
             console.log("transfers:");
             console.log(res);
             let arr = [];
+            if (!res) { return; }
             for (let i = 0; i < res.length; ++i){
                 let tokenId = res[i].returnValues.tokenId;
                 let owner = res[i].returnValues.to;
@@ -380,40 +397,41 @@ export const Main = () => {
         } catch {
             setBalance(x => x = 0);
         }
-
+        
         getNfts(wallet, (val) => {
             updateNfts(val.data);
-            /*console.log("getNfts:");
-            console.log(val);
-            let arrNfts = nfts;
-            let arrGifts = myPresents;
-            let localNextId = 0;
-            for (let i = 0; i < val.data.length; ++i) {
-                if (val.data[i].isPresent) {
-                    let gift = val.data[i];
-                    gift.canMint = false;
-                    gift.notMinted = false;
-                    gift.key = nextId.current + localNextId;
-                    ++localNextId;
-                    if (!arrGifts.some(x => x.id === gift.id)) {
-                        arrGifts.push(gift);
-                    }
-                } else {
-                    arrNfts.push(val.data[i]);
-                }
-            }
-            nextId.current += localNextId;
-            setNfts(x => x = arrNfts);
-            setMyPresents(x => x = arrGifts);*/
         });
     }, [wallet, web3]);
     useEffect(() => {
         document.title = "lucky-presents";
         setPresents(x => x = createPresents());
+        getPrices((val) => {
+            console.log("prices:");
+            console.log(val.data);
+            prices.current = val.data;
+            updatePrices();
+        });
     }, []);
     useEffect(() => {
         updatePresentsState();
     }, [presents]);
+
+    const updatePrices = () => {
+        let ps = prices.current;
+        for (let i = 0; i < ps.length; ++i) {
+            console.log(ps[i]);
+            let found = myPresents.filter(x => x.id.toString() === ps[i].tokenId.toString())[0];
+            if (found) {
+                found.price = ps[i].price;
+                console.log("price updated");
+            }
+        }
+        console.log(myPresents);
+        setMyPresents(x => x);
+    }
+    const findPrice = (tokenId) => {
+        return prices.current.filter(x => x.tokenId.toString() === tokenId?.toString())[0]?.price;
+    }
 
     const updateNfts = (newNfts) => {
         console.log("getNfts:");
@@ -434,6 +452,8 @@ export const Main = () => {
                 item.notMinted = false;
                 item.order = 0;
                 item.key = nextId.current;
+                let foundPrice = findPrice(item.id);
+                if (foundPrice){ item.price = foundPrice; }
                 ++nextId.current;
                 if (true || !myPresents.some(x => x.id === item.id)) {
                     arrGifts.push(item);
@@ -458,15 +478,14 @@ export const Main = () => {
     const updatePresentsState = () => {
         if (presents == null || presents.length === 0 || wasUpdated){ return; }
         setWasUpdated(x => x = true);
-        //console.log(presents);
         getPresents(contractAddress, (gifts) => {
             updatePresentsStateLocal(gifts.data);
         });
     }
     const updatePresentsStateLocal = (gifts) => {
         const arr = [];
-        //console.log("getPresents:");
-        //console.log(gifts);
+        console.log("getPresents:");
+        console.log(gifts);
         let localNextId = 0;
         for (let i = 0; i < gifts.length; ++i) {
             const present = gifts[i];
@@ -509,7 +528,8 @@ export const Main = () => {
             
             <Routes>
                 <Route path="/" element={<Gallery presents={presents} myPresents={myPresents} mint={contractMint} rent={contractRent} wrap={contractWrap} wallet={wallet} />} />
-                <Route path="/my" element={<Gallery presents={myPresents} myPresents={myPresents} nfts={nfts} importContract={importContract} rent={contractRent} wrap={contractWrap} unwrap={contractUnwrap} wallet={wallet} />} />
+                <Route path="/my" element={<Gallery presents={myPresents} myPresents={myPresents} nfts={nfts} importContract={importContract} rent={contractRent} 
+                    wrap={contractWrap} unwrap={contractUnwrap} wallet={wallet} web3={web3} />} />
                 <Route path="/howItWorks" element={<HowItWorks />} />
                 <Route path="/received" element={<MyPresents received={received} />} />
             </Routes>

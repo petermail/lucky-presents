@@ -38,7 +38,7 @@ module.exports = {
     networks: {
       development: {
         host: "127.0.0.1",
-        port: 8545,//TO_REPLACE
+        port: 8560,//TO_REPLACE
         network_id: "*",
         websockets: true,
         //type: "quorum",

@@ -51,10 +51,13 @@ export const getBalance = (web3, address, onBalanceUpdate) => {
     );
   }
   
-export var fixChecksumAddress = function (web3, address) {
+export const fixChecksumAddress = function (web3, address) {
   return address.length === 0 ? "" : web3.utils.toChecksumAddress(address.toString());
 }
 
+export const verifyAddress = (web3, address) => {
+  return web3.utils.isAddress(address);
+}
 
 export const addChain = (ethereum, chainId, chainName, nativeCoinName, nativeCoinSymbol, rpcUrls, blockExplorers, onDone) => {
   if (ethereum === null){ return; }

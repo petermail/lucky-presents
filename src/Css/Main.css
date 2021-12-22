@@ -104,14 +104,13 @@ html {
     margin: 20px;
     overflow: hidden;
 }
-.presentImage img {
+.presentImage .mainImage {
     width: 150px;
 }
 .presentImage {
     float: left;
 }
 .presentImage div {
-    /*margin: 4px;*/
     padding: 4px;
     margin: 0px;
 }
@@ -230,6 +229,61 @@ html {
 }
 .vMiddle {
     height: 24px;
+}
+
+.smallPreview {
+    overflow: hidden;
+}
+.smallPreview img {
+    width: 60px;
+    max-height: 80px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px white solid;
+    padding: 6px;
+}
+.smallMargin {
+    margin: 2px;
+}
+.smallGap {
+    margin: 0 8px;
+}
+.clickable {
+    cursor: pointer;
+}
+
+.dialog {
+  position: fixed; /* Stay in place */
+  z-index: 1; /* Sit on top */
+  padding-top: 100px; /* Location of the box */
+  left: 0;
+  top: 0;
+  width: 100%; /* Full width */
+  height: 100%; /* Full height */
+  overflow: auto; /* Enable scroll if needed */
+  background-color: rgb(0,0,0); /* Fallback color */
+  background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+}
+.dialog div {
+    margin: auto;
+}
+.dialogIn {
+    text-align: center;
+    max-width: 500px;
+    background-color: #333333;
+    margin: auto;
+    border: 1px solid white;
+    border-radius: 20px;
+}
+.dialog .button {
+    width: 100%; /*140px;*/
+    height: 26px;
+}
+.dialogIn input {
+    width: 260px;
+    height: 22px;
+}
+.dialogFooter {
+    display: flex;
 }
 
 .button {

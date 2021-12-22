@@ -1,12 +1,14 @@
 import mintExample from '../Images/mint_example.png'
 import rentExample from '../Images/rent_example.png'
 import wrapExample from '../Images/wrap_example.png'
+import videoExample from '../Videos/LuckyPresents.mp4'
 
 export const HowItWorks = () => {
 
     return (
         <div className="mainMargin">
             <h3>How it works</h3>
+            <video src={videoExample} width={600} controls autoplay muted></video>
             <p>
                 <b>Mint your present</b> - now you are owner of one of 300 unique NFTs, you can rent it for additional revenue and set your rent price.
             </p>

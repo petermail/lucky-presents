@@ -1,12 +1,26 @@
-import { useState } from 'react'
-import { PRICE_UNIT, contractAddress } from './Units'
+import { useState, useEffect } from 'react'
+import { PRICE_UNIT } from './Units'
 import { PresentSelector } from './PresentSelector'
+import { SmallPreview } from './SmallPreview'
+import { SendDialog } from './SendDialog'
+import { NewPrice } from './NewPrice'
+
+import settingsImg from '../Images/settings.png';
+import { insertPrice } from '../Logic/ServerLogic'
 
 export const MintSubmenu = (props) => {
     const { id, isVisible, canMint, notMinted, remainRents, price, mint, rent, wrap, unwrap,
-        allowWrap, myPresents, contractNft, nftId, owner, wallet, isPresent } = props;
+        allowWrap, myPresents, contractNft, nftId, owner, wallet, isPresent, web3, img } = props;
     const [tokenId, setTokenId] = useState(-1);
-    const [imgSrc, setImgSrc] = useState("");
+    const [imgInside, setImgInside] = useState(img);
+    const [isDialog, setIsDialog] = useState(false);
+    const [isNewPrice, setIsNewPrice] = useState(false);
+    const [activePrice, setActivePrice] = useState(price);
+
+    useEffect(() => {
+        setActivePrice(x => price);
+    }, [price]);
+
 
     const mintHandler = (e) => {
         mint(id, price);
@@ -30,6 +44,16 @@ export const MintSubmenu = (props) => {
     const updateTokenIdHandler = (id) => {
         setTokenId(x => x = id);
     }
+    const sendHandler = () => {
+        setIsDialog(x => true);
+    }
+    const setPriceHandler = () => {
+        setIsNewPrice(x => !x);
+    }
+    const savePriceHandler = (x) => {
+        setActivePrice(x);
+        insertPrice(x, wallet, id);
+    }
 
     if (isVisible) {
         if (canMint)
@@ -51,7 +75,13 @@ export const MintSubmenu = (props) => {
             return (
                 <div className="mintSubmenu" onClick={emptyHandler}>
                     Remains for rent: {remainRents} <br />
-                    Price: {price} {PRICE_UNIT}
+                    Price: {activePrice} {PRICE_UNIT} 
+                    { owner === wallet &&
+                        <img className="smallGap clickable" alt="set price" src={settingsImg} height={16} width={16} onClick={setPriceHandler} />
+                    }
+                    { isNewPrice &&
+                        <NewPrice closeHandler={() => setPriceHandler()} setPriceHandler={(x) => savePriceHandler(x)} startPrice={activePrice} />
+                    }
                     <div className="button" onClick={rentHandler}>
                         { owner === wallet &&
                             <>self-rent</>
@@ -90,8 +120,11 @@ export const MintSubmenu = (props) => {
         else if (isPresent && contractNft) {
             return (
                 <div className="presentImageIn" onClick={emptyHandler}>
+                    <SendDialog web3={web3} wallet={wallet} tokenId={id} isActive={isDialog} changeDialogActive={y => setIsDialog(x => y)} />
                     <div className="mintSubmenu">
                         <div className="button" onClick={unwrapHandler}>unwrap</div>
+                        <SmallPreview contractNft={contractNft} nftId={nftId} web3={web3} img={imgInside} setImage={setImgInside} />
+                        <div className="button" onClick={sendHandler}>send</div>
                     </div>
                 </div>
             )
